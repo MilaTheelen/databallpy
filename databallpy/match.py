@@ -15,6 +15,7 @@ from databallpy.events import (
     ShotEvent,
 )
 from databallpy.utils.constants import MISSING_INT
+from databallpy.utils.constants import POSITION_GROUPS
 from databallpy.utils.errors import DataBallPyError
 from databallpy.utils.logging import create_logger
 from databallpy.utils.match_utils import (
@@ -232,42 +233,68 @@ class Match:
 
         return f"{home_text} - {away_text} {date.strftime('%Y-%m-%d %H:%M:%S')}"
 
-    # position group mapping
-    POSITION_GROUPS = {
-    "goalkeeper": ["goalkeeper"],
-    "back": ["back", "defender"],
-    "midfielder": ["midfielder"],
-    "forward": ["forward", "attacker"],
-    }
     
     @requires_tracking_data
     def home_players_column_ids(
-    self, 
-    include_positions: list[str] = [], 
-    exclude_positions: list[str] = []
-) -> list[str]:
+        self, 
+        include_positions: list[str] = [], 
+        exclude_positions: list[str] = []
+    ) -> list[str]:
         
         """Function to get all column ids of the tracking data that refer to information
-        about the home team players. Including the possibility of filtering the data by player position. 
+        about the home team players, including the possibility of filtering the data by player position. 
 
         Args:
-            include_position(list[str], optional): List op positions to include in the output as a filter.
-            exclude_position(list[str], optional): List op positions to exclude in the output as a filter.
+            include_positions (list[str], optional): List of positions to include in the output as a filter.
+            exclude_positions (list[str], optional): List of positions to exclude in the output as a filter.
 
         Returns:
             list[str]: All column ids of the home team players
         """
-    
-    
 
-    # validate the known positions. 
+        def match_position_group(position: str, position_list: list[str]) -> bool:
+            """Check if the given position matches any in the position group."""
+            for pos in position_list:
+                pos_lower = pos.lower()
+                for group_name, synonyms in POSITION_GROUPS.items():
+                    if any(synonym in position for synonym in synonyms) and pos_lower in synonyms:
+                        return True
+            return False
 
+        # Validate include and exclude positions
+        for position_list in [include_positions, exclude_positions]:
+            for pos in position_list:
+                if not match_position_group(pos, POSITION_GROUPS.keys()):
+                    raise ValueError(f"Invalid position '{pos}' entered. Must be one of {list(POSITION_GROUPS.keys())}")
 
-        return [
-            id[:-2]
-            for id in self.tracking_data.columns
-            if id[:4] == "home" and id[-2:] == "_x"
+        # Get list of players and their positions directly from home_players DataFrame
+        player_positions = {
+            row["id"]: row["position"]
+            for idx, row in self.home_players.iterrows()  # Iterate over the DataFrame rows
+        }
+
+        # Filtering logic
+        def filter_position(player_position):
+            # Check for include positions (if any)
+            if include_positions and not match_position_group(player_position, include_positions):
+                return False
+            
+            # Check for exclude positions
+            if match_position_group(player_position, exclude_positions):
+                return False
+            
+            return True
+
+        # Generate filtered player IDs based on position filtering and the player ID criteria
+        filtered_ids = [
+            player_id_to_column_id(self.home_players, self.away_players, player_id)  # Use player_id_to_column_id to get the column id
+            for player_id, position in player_positions.items()
+            if filter_position(position.lower())
         ]
+
+        return filtered_ids
+
+
 
     @requires_tracking_data
     def away_players_column_ids(self) -> list[str]:
