@@ -232,14 +232,37 @@ class Match:
 
         return f"{home_text} - {away_text} {date.strftime('%Y-%m-%d %H:%M:%S')}"
 
+    # position group mapping
+    POSITION_GROUPS = {
+    "goalkeeper": ["goalkeeper"],
+    "back": ["back", "defender"],
+    "midfielder": ["midfielder"],
+    "forward": ["forward", "attacker"],
+    }
+    
     @requires_tracking_data
-    def home_players_column_ids(self) -> list[str]:
+    def home_players_column_ids(
+    self, 
+    include_positions: list[str] = [], 
+    exclude_positions: list[str] = []
+) -> list[str]:
+        
         """Function to get all column ids of the tracking data that refer to information
-        about the home team players
+        about the home team players. Including the possibility of filtering the data by player position. 
+
+        Args:
+            include_position(list[str], optional): List op positions to include in the output as a filter.
+            exclude_position(list[str], optional): List op positions to exclude in the output as a filter.
 
         Returns:
             list[str]: All column ids of the home team players
         """
+    
+    
+
+    # validate the known positions. 
+
+
         return [
             id[:-2]
             for id in self.tracking_data.columns
