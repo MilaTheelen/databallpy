@@ -235,64 +235,37 @@ class Match:
 
     
     @requires_tracking_data
-    def home_players_column_ids(
-        self, 
-        include_positions: list[str] = [], 
-        exclude_positions: list[str] = []
-    ) -> list[str]:
-        
-        """Function to get all column ids of the tracking data that refer to information
-        about the home team players, including the possibility of filtering the data by player position. 
+    def home_players_column_ids(self, include_positions=None, exclude_positions=None) -> list[str]:
+        """Get all column ids of the home team players, optionally filtered by position inclusion/exclusion.
 
         Args:
-            include_positions (list[str], optional): List of positions to include in the output as a filter.
-            exclude_positions (list[str], optional): List of positions to exclude in the output as a filter.
+            include_positions (list[str], optional): Positions to include.
+            exclude_positions (list[str], optional): Positions to exclude.
 
         Returns:
-            list[str]: All column ids of the home team players
+            list[str]: Column ids of home team players matching the criteria.
         """
+        
+        include_positions = set(include_positions or [])
+        exclude_positions = set(exclude_positions or [])
 
-        def match_position_group(position: str, position_list: list[str]) -> bool:
-            """Check if the given position matches any in the position group."""
-            for pos in position_list:
-                pos_lower = pos.lower()
-                for group_name, synonyms in POSITION_GROUPS.items():
-                    if any(synonym in position for synonym in synonyms) and pos_lower in synonyms:
-                        return True
-            return False
+        def standardize_position(position):
+            for general_pos, keywords in POSITION_GROUPS.items():
+                if any(keyword in position.lower() for keyword in keywords):
+                    return general_pos
+            return position  
 
-        # Validate include and exclude positions
-        for position_list in [include_positions, exclude_positions]:
-            for pos in position_list:
-                if not match_position_group(pos, POSITION_GROUPS.keys()):
-                    raise ValueError(f"Invalid position '{pos}' entered. Must be one of {list(POSITION_GROUPS.keys())}")
+        self.home_players["standardized_position"] = self.home_players["position"].apply(standardize_position)
 
-        # Get list of players and their positions directly from home_players DataFrame
-        player_positions = {
-            row["id"]: row["position"]
-            for idx, row in self.home_players.iterrows()  # Iterate over the DataFrame rows
-        }
-
-        # Filtering logic
-        def filter_position(player_position):
-            # Check for include positions (if any)
-            if include_positions and not match_position_group(player_position, include_positions):
-                return False
-            
-            # Check for exclude positions
-            if match_position_group(player_position, exclude_positions):
-                return False
-            
-            return True
-
-        # Generate filtered player IDs based on position filtering and the player ID criteria
-        filtered_ids = [
-            player_id_to_column_id(self.home_players, self.away_players, player_id)  # Use player_id_to_column_id to get the column id
-            for player_id, position in player_positions.items()
-            if filter_position(position.lower())
+        filtered_players = self.home_players[
+            (self.home_players["standardized_position"].isin(include_positions) if include_positions else True) &
+            (~self.home_players["standardized_position"].isin(exclude_positions) if exclude_positions else True)
+        ]["shirt_num"]
+        
+        return [
+            id[:-2] for id in self.tracking_data.columns
+            if id[:4] == "home" and id[-2:] == "_x" and int(id[5:-2]) in filtered_players.values
         ]
-
-        return filtered_ids
 
 
 

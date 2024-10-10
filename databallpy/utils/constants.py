@@ -75,7 +75,7 @@ DATABALLPY_PASS_TYPES = [
 """The pass type strings that are supported in databallpy."""
 
 POSITION_GROUPS = {
-    "goalkeeper": ["goalkeeper"],
+    "goalkeeper": ["keeper"],
     "back": ["back", "defender"],
     "midfielder": ["midfielder"],
     "forward": ["forward", "attacker"],
